@@ -45,7 +45,10 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
     private val monsterdirbutton = Array<String?>(4){null}
     // monster의 현재 위치
     var monster_present_location = Array(4){FloatArray(2){0.0F}}
+    // star 사진을 담을 변수
+    var star:Bitmap? = null
 
+    val star_status = Array(8){ IntArray(16){ 1 } }
 
     var n = 0
     val p: Paint =  Paint()
@@ -61,16 +64,11 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
 
     // pacman 사진을 담을 Bitmap 배열
     val pacman = Array<Bitmap?>(4){null}
-    // monster 사진을 담을 Bitmap 변수
+    // monster 사진을 담을 Bitmap 배열
     val monster = Array<Bitmap?>(4){null}
 
     // 화살표 사진을 담을 배열
     val dir = Array(1){ Array<Bitmap?>(4){null} }
-
-    init {
-        mp.start()
-        mp.isLooping = true
-    }
 
     val paint = Paint()
 
@@ -94,6 +92,8 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
         monster[1] = Bitmap.createScaledBitmap(BitmapFactory.decodeResource(resources, R.drawable.millitary_monster), scrw!!/16, scrh!!/8, true)
         monster[2] = Bitmap.createScaledBitmap(BitmapFactory.decodeResource(resources, R.drawable.yellow_monster), scrw!!/16, scrh!!/8, true)
         monster[3] = Bitmap.createScaledBitmap(BitmapFactory.decodeResource(resources, R.drawable.red_monster), scrw!!/16, scrh!!/8, true)
+
+        star = Bitmap.createScaledBitmap(BitmapFactory.decodeResource(resources, R.drawable.star_down), scrw!! / 64, scrh!! / 32, true)
 
         // 화살표 사진 넣기
         var l = BitmapFactory.decodeResource(resources, R.drawable.dir)
@@ -129,8 +129,8 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
     override fun onDraw(canvas: Canvas?) {
 
         //경계선 그리기
-        canvas?.drawLine(scrw!! * 7 / 32.0F, scrh!!.toFloat(), scrw!!* 7 / 32.0F, scrh!! / 8.0F, paint )
-        canvas?.drawLine(scrw!! * 7 / 32.0F, scrh!! / 8.0F, scrw!!.toFloat(), scrh!! / 8.0F, paint )
+        canvas?.drawLine(scrw!! * 3 / 16.0F, scrh!!.toFloat(), scrw!!* 3 / 16.0F, scrh!! / 8.0F, paint )
+        canvas?.drawLine(scrw!! * 3 / 16.0F, scrh!! / 8.0F, scrw!!.toFloat(), scrh!! / 8.0F, paint )
 
         p.color = Color.BLACK
         p.textSize = scrh!! / 16.0F
@@ -146,6 +146,26 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
         // pacman의 현재 위치 저장
         pacman_present_location[0] = scrw!! *7 / 16 + xd + scrw!! / 32
         pacman_present_location[1] = scrh!!- scrh!! / 8 + yd + scrh!! / 16
+
+        //별 그리기
+        for(i in 1 until 8){
+            for(j in 3 until 16){
+                if(distance_beween_pacman_monster(pacman_present_location[0], pacman_present_location[1],j * scrw!! / 16.0F + scrw!! / 32.0F, i * scrh!! / 8.0F + scrh!! / 16.0F ) < scrw!! / 32){
+                    star_status[i][j] = 0
+                    // 무한루프 해결
+                    mp.start()
+                }
+                mp.stop()
+                if(star_status[i][j] == 1) {
+                    canvas?.drawBitmap(
+                        star!!,
+                        j * scrw!! / 16.0F + scrw!! / 32.0F,
+                        i * scrh!! / 8.0F + scrh!! / 16.0F,
+                        null
+                    )
+                }
+            }
+        }
 
         // 캔버스에 monster 그리기
         for(i in monster.indices) {
@@ -190,6 +210,7 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
 
     }
 
+    // 화면 touch 제어
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         Log.d("test", "touched")
