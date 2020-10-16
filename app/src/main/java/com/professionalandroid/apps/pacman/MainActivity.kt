@@ -1,6 +1,6 @@
 package com.professionalandroid.apps.pacman
 
-import android.content.Context
+
 import android.content.pm.ActivityInfo
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
@@ -19,14 +19,17 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         supportActionBar?.hide()
 
-        start_timer(game)
-
     }
+
+//    fun floating_pop_up(){
+//        val intent = Intent(this, Popup::class.java)
+//        startActivity(intent)
+//    }
 
     fun start_timer(game: Game) {
 
         timerTask = kotlin.concurrent.timer(period = 10) {	// timer() 호출
-            time++	// period=10, 0.01초마다 time를 1씩 증가
+            time++	// period=10, 0.01초마다 time을 1씩 증가
             val sec = time / 100	// time/100, 나눗셈의 몫 (초 부분)
             val milli = time % 100	// time%100, 나눗셈의 나머지 (밀리초 부분)
 
@@ -38,8 +41,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun pause(game: Game) {
-        timerTask?.cancel();	// 안전한 호출(?.)로 timerTask가 null이 아니면 cancel() 호출
+    fun reset() {
+        timerTask?.cancel()	// 안전한 호출(?.)로 timerTask가 null이 아니면 cancel() 호출
+        time = 0
     }
 
 

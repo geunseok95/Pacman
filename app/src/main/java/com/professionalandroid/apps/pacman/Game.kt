@@ -8,9 +8,6 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
-import android.widget.TextView
-import kotlinx.android.synthetic.main.activity_main.*
-import java.util.*
 import kotlin.Exception
 import kotlin.math.pow
 import kotlin.math.sqrt
@@ -22,7 +19,8 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
 
     var sectext = "00"
     var millitext = "00"
-
+    var score = 0
+    val mActivity = MainActivity()
 
     // pacman의 좌표
     var xd:Float = 0.0F
@@ -47,13 +45,17 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
     var monster_present_location = Array(4){FloatArray(2){0.0F}}
     // star 사진을 담을 변수
     var star:Bitmap? = null
-
+    // replay 사진을 담을 변수
+    var replay: Bitmap? = null
     val star_status = Array(8){ IntArray(16){ 1 } }
+    val item_status = Array(8){ IntArray(16){ 0 } }
 
     var n = 0
     val p: Paint =  Paint()
     var pacmanThread: PacmanThread? = null
     var monsterThread: MonsterThread? = null
+    var itemThread: ItemThread? = null
+    var monsterCheckthread: MonsterCheckThread? = null
 
     // 캐릭터가 정지 상태에 있는 동안 어떤 방향키를 클릭했는지 저장할 문자열 변수
     private var dirbutton1:String? = null
@@ -69,12 +71,18 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
 
     // 화살표 사진을 담을 배열
     val dir = Array(1){ Array<Bitmap?>(4){null} }
+    // Item 사진으 담을 Bitmap 배열
+    var item: Bitmap? = null
+    val itemlocatioin = IntArray(2){0}
 
     val paint = Paint()
 
-
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
+
+        // timer 시작
+        mActivity.start_timer(this)
+
         this.scrw = w
         this.scrh = h
 
@@ -93,8 +101,9 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
         monster[2] = Bitmap.createScaledBitmap(BitmapFactory.decodeResource(resources, R.drawable.yellow_monster), scrw!!/16, scrh!!/8, true)
         monster[3] = Bitmap.createScaledBitmap(BitmapFactory.decodeResource(resources, R.drawable.red_monster), scrw!!/16, scrh!!/8, true)
 
+        replay = Bitmap.createScaledBitmap(BitmapFactory.decodeResource(resources, R.drawable.replay), scrw!! / 20, scrh!! / 10, true)
         star = Bitmap.createScaledBitmap(BitmapFactory.decodeResource(resources, R.drawable.star_down), scrw!! / 64, scrh!! / 32, true)
-
+        item = Bitmap.createScaledBitmap(BitmapFactory.decodeResource(resources, R.drawable.berries), scrw!! / 32, scrh!! / 16, true)
         // 화살표 사진 넣기
         var l = BitmapFactory.decodeResource(resources, R.drawable.dir)
         l = Bitmap.createScaledBitmap(l, scrw!! / 16, scrh!!/ 2, true)
@@ -109,17 +118,23 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
         if(pacmanThread == null){
             pacmanThread = PacmanThread()
             pacmanThread?.start()
-            Log.d("test", "make thread")
         }
 
         if(monsterThread == null){
             monsterThread = MonsterThread()
             monsterThread?.start()
         }
+        if(itemThread == null){
+            itemThread = ItemThread()
+            itemThread?.start()
+        }
+        if(monsterCheckthread == null){
+            monsterCheckthread = MonsterCheckThread()
+            monsterCheckthread?.start()
+        }
     }
 
     override fun onDetachedFromWindow() {
-        Log.d("test", "detached")
         pacmanThread?.run = false
         monsterThread?.run = false
         super.onDetachedFromWindow()
@@ -128,13 +143,17 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
     @SuppressLint("DrawAllocation")
     override fun onDraw(canvas: Canvas?) {
 
-        //경계선 그리기
+        // 경계선 그리기
         canvas?.drawLine(scrw!! * 3 / 16.0F, scrh!!.toFloat(), scrw!!* 3 / 16.0F, scrh!! / 8.0F, paint )
         canvas?.drawLine(scrw!! * 3 / 16.0F, scrh!! / 8.0F, scrw!!.toFloat(), scrh!! / 8.0F, paint )
 
         p.color = Color.BLACK
         p.textSize = scrh!! / 16.0F
         canvas?.drawText("$sectext : $millitext",scrw!! / 2.0F ,scrh!! / 16.0F, p)
+        canvas?.drawText("score: $score", 0.0F, scrh!! / 4.0F, p)
+
+        // replay 그리기
+        canvas?.drawBitmap(replay!!, scrw!! * 15 / 16F, 0.0F, null )
 
         // life 그리기
         for(i in 0 until life){
@@ -147,15 +166,36 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
         pacman_present_location[0] = scrw!! *7 / 16 + xd + scrw!! / 32
         pacman_present_location[1] = scrh!!- scrh!! / 8 + yd + scrh!! / 16
 
-        //별 그리기
+
+        // item 그리기
+        for(i in 1 until 8) {
+            for (j in 3 until 16) {
+                if(item_status[i][j] == 1 && distance_beween_pacman_monster(pacman_present_location[0], pacman_present_location[1],scrw!! / 32.0F + scrw!! / 16 * j, scrh!! / 16.0F + scrh!! / 8 * i ) < scrw!! / 32){
+                    item_status[i][j] = 0
+                    monsterThread?.run = false
+                }
+                if (item_status[i][j] == 1) {
+                    canvas?.drawBitmap(
+                        item!!,
+                        scrw!! / 32.0F + scrw!! / 16 * j,
+                        scrh!! / 16.0F + scrh!! / 8 * i,
+                        null
+                    )
+                }
+            }
+        }
+
+        // 별 그리기
         for(i in 1 until 8){
             for(j in 3 until 16){
                 if(distance_beween_pacman_monster(pacman_present_location[0], pacman_present_location[1],j * scrw!! / 16.0F + scrw!! / 32.0F, i * scrh!! / 8.0F + scrh!! / 16.0F ) < scrw!! / 32){
-                    star_status[i][j] = 0
-                    // 무한루프 해결
-                    mp.start()
+                   if(star_status[i][j] == 1){
+                       score++
+                       star_status[i][j] = 0
+                       mp.start()
+                   }
                 }
-                mp.stop()
+
                 if(star_status[i][j] == 1) {
                     canvas?.drawBitmap(
                         star!!,
@@ -196,13 +236,15 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
             if(life == 0){
                 pacmanThread?.run = false
                 monsterThread?.run = false
+                itemThread?.run = false
+                monsterCheckthread?.run = false
             }
         }
 
         //up
         canvas?.drawBitmap(dir[0][0]!!, (scrw!! / 16).toFloat(), (scrh!! - scrh!! *3 / 8).toFloat(), null)
         //left
-        canvas?.drawBitmap(dir[0][1]!!, 0.0F, (scrh!! - scrh!! / 4).toFloat(), null)
+        canvas?.drawBitmap(dir[0][1]!!,0.0F, (scrh!! - scrh!! / 4).toFloat(), null)
         //right
         canvas?.drawBitmap(dir[0][2]!!, (scrw!! / 8).toFloat(), (scrh!! - scrh!! / 4).toFloat(), null)
         //down
@@ -213,7 +255,7 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
     // 화면 touch 제어
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
-        Log.d("test", "touched")
+
         if(event?.action == MotionEvent.ACTION_DOWN || event?.action == MotionEvent.ACTION_MOVE || event?.action == MotionEvent.ACTION_POINTER_DOWN ){
            if(event.x > scrw!! /8 && event.x < scrw!! * 3 / 16 && event.y < scrh!! * 7 / 8 && event.y > scrh!! *3 / 4){
                if(!start && count == 0){
@@ -246,9 +288,63 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
                 }
                 dirbutton2 = "down"
             }
+            else if(event.x > scrw!! * 15 / 16 && event.x < scrw!! && event.y > 0.0 && event.y < scrh!! / 8){
+                pacmanThread?.run = false
+                monsterThread?.run = false
+                itemThread?.run = false
+                monsterCheckthread?.run = false
+                itemlocatioin[0] = 0
+                itemlocatioin[1] = 0
+                xd = 0.0F
+                yd = 0.0F
+                count = 0
+                score = 0
+                start = false
+                pacman_present_location[0] = 0.0F
+                pacman_present_location[1] = 0.0F
+                life = 3
+                n = 0
+                for(i in 0 until 4){
+                    rxd[i] = 0.0F
+                    ryd[i] = 0.0F
+                    count2[i] = 0
+                    monsterdirbutton[i] = ""
+                }
+                for(i in 0 until 4){
+                    for(j in 0 until 2){
+                        monster_present_location[i][j] = 0.0F
+                    }
+                }
+
+                for(i in 0 until 8){
+                    for( j in 0 until 16){
+                        star_status[i][j] = 1
+                        item_status[i][j]  = 0
+                    }
+                }
+
+                pacmanThread = PacmanThread()
+                pacmanThread?.start()
+
+                monsterThread = MonsterThread()
+                monsterThread?.start()
+
+                itemThread = ItemThread()
+                itemThread?.start()
+
+                monsterCheckthread = MonsterCheckThread()
+                monsterCheckthread?.start()
+
+                sectext = "00"
+                millitext = "00"
+
+                mActivity.reset()
+                mActivity.start_timer(this)
+           }
             else{
                start = false
            }
+
         }
 
         if(event?.action == MotionEvent.ACTION_UP || event?.action == MotionEvent.ACTION_POINTER_UP){
@@ -287,19 +383,19 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
                         count += 1
                     }
 
-                    if(start && dirbutton1 == "Down" && count != 20 || !start && count in 1..19 && dirbutton1 == "Down"){
+                    if((start && dirbutton1 == "Down" && count != 20 || !start && count in 1..19 && dirbutton1 == "Down") && pacman_present_location[1] < scrh!! - scrh!! / 8 - (scrh!! % 32) / 2){
                         yd += (scrh!! /80).toFloat()
                         n = 1
                     }
-                    else if(start && dirbutton1 == "Up" && count != 20 || !start && count in 1..19 && dirbutton1 == "Up") {
+                    else if((start && dirbutton1 == "Up" && count != 20 || !start && count in 1..19 && dirbutton1 == "Up") && pacman_present_location[1] > scrh!! / 8 + scrh!! / 16) {
                         yd -= (scrh!! / 80).toFloat()
                         n = 2
                     }
-                    else if(start && dirbutton1 == "Right" && count != 20 || !start && count in 1..19 && dirbutton1 == "Right") {
+                    else if((start && dirbutton1 == "Right" && count != 20 || !start && count in 1..19 && dirbutton1 == "Right") && pacman_present_location[0] < scrw!! - scrw!! / 32) {
                         xd += (scrw!! / 160).toFloat()
                         n = 0
                     }
-                    else if(start && dirbutton1 == "Left" && count != 20 || !start && count in 1..19 && dirbutton1 == "Left") {
+                    else if((start && dirbutton1 == "Left" && count != 20 || !start && count in 1..19 && dirbutton1 == "Left") && pacman_present_location[0] > scrw!! * 3 / 16 + scrw!! / 32) {
                         xd -= (scrw!! / 160).toFloat()
                         n = 3
                     }
@@ -316,7 +412,6 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
     inner class MonsterThread: Thread() {
         var run: Boolean = true
         override fun run() {
-
             while (run){
                 try{
                     for(i in monster.indices) {
@@ -364,11 +459,42 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
         }
     }
 
+    inner class ItemThread:Thread(){
+        var run = true
 
+        override fun run() {
+            while(run) {
+                try {
+                    val x = Random.nextInt(7) + 1
+                    val y = Random.nextInt(13) + 3
+                    itemlocatioin[0] = x
+                    itemlocatioin[1] = y
+                    item_status[itemlocatioin[0]][itemlocatioin[1]] = 1
 
+                    sleep(10000)
+                } catch (e: Exception) {
 
+                }
+            }
+        }
+    }
+
+    inner class MonsterCheckThread:Thread(){
+        var run = true
+
+        override fun run() {
+            while (run){
+                if(monsterThread?.isAlive!!){
+                    sleep(5000)
+                }
+                else{
+                    monsterThread = MonsterThread()
+                    monsterThread?.start()
+                }
+            }
+        }
+    }
 
     fun distance_beween_pacman_monster(pacmanx: Float, pacmany:Float, monsterx: Float, monstery: Float): Float = sqrt((pacmanx - monsterx).pow(2) + (pacmany - monstery).pow(2))
-
 
 }
