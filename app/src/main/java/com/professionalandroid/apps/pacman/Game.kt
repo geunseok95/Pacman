@@ -8,19 +8,23 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
+import kotlinx.android.synthetic.main.popup.view.*
 import kotlin.Exception
 import kotlin.math.pow
 import kotlin.math.sqrt
 import kotlin.random.Random
 
-class Game(context: Context, attributeSet: AttributeSet) : View(context, attributeSet) {
+class Game(context: Context, attributeSet: AttributeSet) : View(context, attributeSet), Popup.MyDialogOKClickedListener {
     var scrw: Int? = null
     var scrh: Int? = null
 
+
+    var dlg : Popup? = null
     var sectext = "00"
     var millitext = "00"
     var score = 0
     val mActivity = MainActivity()
+
 
     // pacman의 좌표
     var xd:Float = 0.0F
@@ -233,11 +237,20 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
 
                 Log.d("test", "thread have to be stopped")
             }
-            if(life == 0){
+            if(life == 0) {
                 pacmanThread?.run = false
                 monsterThread?.run = false
                 itemThread?.run = false
                 monsterCheckthread?.run = false
+                if (dlg == null) {
+                    millitext = "00"
+                    dlg = Popup(context, this)
+//                dlg.setOnOKClickedListener{ content ->
+//                    text.text = message
+//                }
+                    Log.d("test", "popup띄우기")
+                    dlg!!.start("score: $score", "실패\n다시 시작할까요?")
+                }
             }
         }
 
@@ -249,6 +262,19 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
         canvas?.drawBitmap(dir[0][2]!!, (scrw!! / 8).toFloat(), (scrh!! - scrh!! / 4).toFloat(), null)
         //down
         canvas?.drawBitmap(dir[0][3]!!, (scrw!! / 16).toFloat(), (scrh!! - scrh!! * 1 / 8).toFloat(), null)
+
+
+        if(score == 91){
+
+                dlg = Popup(context, this)
+//                dlg.setOnOKClickedListener{ content ->
+//                    text.text = message
+//                }
+                Log.d("test", "popup띄우기")
+                dlg!!.start("score: $score", "성공\n다시 시작할까요?")
+
+        }
+
 
     }
 
@@ -496,5 +522,58 @@ class Game(context: Context, attributeSet: AttributeSet) : View(context, attribu
     }
 
     fun distance_beween_pacman_monster(pacmanx: Float, pacmany:Float, monsterx: Float, monstery: Float): Float = sqrt((pacmanx - monsterx).pow(2) + (pacmany - monstery).pow(2))
+
+    override fun onOKClicked() {
+
+        itemlocatioin[0] = 0
+        itemlocatioin[1] = 0
+        xd = 0.0F
+        yd = 0.0F
+        count = 0
+        score = 0
+        start = false
+        pacman_present_location[0] = 0.0F
+        pacman_present_location[1] = 0.0F
+        life = 3
+        n = 0
+        for(i in 0 until 4){
+            rxd[i] = 0.0F
+            ryd[i] = 0.0F
+            count2[i] = 0
+            monsterdirbutton[i] = ""
+        }
+        for(i in 0 until 4){
+            for(j in 0 until 2){
+                monster_present_location[i][j] = 0.0F
+            }
+        }
+
+        for(i in 0 until 8){
+            for( j in 0 until 16){
+                star_status[i][j] = 1
+                item_status[i][j]  = 0
+            }
+        }
+
+        pacmanThread = PacmanThread()
+        pacmanThread?.start()
+
+        monsterThread = MonsterThread()
+        monsterThread?.start()
+
+        itemThread = ItemThread()
+        itemThread?.start()
+
+        monsterCheckthread = MonsterCheckThread()
+        monsterCheckthread?.start()
+
+        sectext = "00"
+        millitext = "00"
+
+        mActivity.reset()
+        mActivity.start_timer(this)
+
+
+    }
 
 }

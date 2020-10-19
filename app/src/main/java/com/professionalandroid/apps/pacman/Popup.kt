@@ -1,37 +1,49 @@
 package com.professionalandroid.apps.pacman
 
-import android.os.Bundle
-import android.os.PersistableBundle
-import android.view.MotionEvent
-import android.view.View
-import androidx.appcompat.app.AppCompatActivity
+import android.app.Dialog
+import android.content.Context
+import android.util.Log
+import android.view.Window
+import android.widget.Button
+import android.widget.TextView
 
-class Popup: AppCompatActivity() {
+class Popup(context : Context, mlistener: MyDialogOKClickedListener) {
+    private val dlg = Dialog(context)   //부모 액티비티의 context 가 들어감
+    private lateinit var lblDesc : TextView
+    private lateinit var scoretext : TextView
+    private lateinit var btnOK : Button
+    private lateinit var btnCancel : Button
+    private var listener : MyDialogOKClickedListener = mlistener
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.popup)
+    fun start(score:String, message : String) {
+        dlg.requestWindowFeature(Window.FEATURE_NO_TITLE)   //타이틀바 제거
+        dlg.setContentView(R.layout.popup)     //다이얼로그에 사용할 xml 파일을 불러옴
+        dlg.setCancelable(false)    //다이얼로그의 바깥 화면을 눌렀을 때 다이얼로그가 닫히지 않도록 함
+        lblDesc = dlg.findViewById(R.id.message)
+        lblDesc.text = message
+        scoretext = dlg.findViewById(R.id.score)
+        scoretext.text = score
 
 
-    }
+        btnOK = dlg.findViewById(R.id.ok)
+        btnOK.setOnClickListener {
+            dlg.dismiss()
 
-    fun retry(view:View){
-        finish()
-    }
-
-    fun mCancle(view: View){
-        finish()
-    }
-
-    override fun onTouchEvent(event: MotionEvent?): Boolean {
-        if(event?.action == MotionEvent.ACTION_OUTSIDE){
-            return false
+            listener.onOKClicked()
         }
-        return true
+
+
+        btnCancel = dlg.findViewById(R.id.cancel)
+        btnCancel.setOnClickListener {
+            dlg.dismiss()
+        }
+        Log.d("test", "show")
+        dlg.show()
     }
 
-    override fun onBackPressed() {
 
+
+    interface MyDialogOKClickedListener {
+        fun onOKClicked()
     }
-
 }
